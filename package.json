@@ -1,0 +1,20 @@
+{
+  "name": "stock-chart-app",
+  "version": "1.0.0",
+  "description": "台股查詢網站 - 使用 Yahoo Finance API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "stock",
+    "taiwan",
+    "yahoo-finance"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
