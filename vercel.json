@@ -1,22 +1,4 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.js": {
-      "runtime": "@vercel/node"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/public/index.html"
-    },
-    {
-      "source": "/style.css",
-      "destination": "/public/style.css"
-    },
-    {
-      "source": "/app.js",
-      "destination": "/public/app.js"
-    }
-  ]
+  "outputDirectory": "public"
 }
