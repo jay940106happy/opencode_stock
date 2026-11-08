@@ -28,6 +28,7 @@ async function getQuote(symbol) {
     if (!resolved) {
         return {
             success: false,
+            code: 'SYMBOL_NOT_FOUND',
             message: '查無此股票代號，請確認代號是否正確'
         };
     }
@@ -63,6 +64,9 @@ async function getQuote(symbol) {
                 name: meta.shortName || meta.longName || symbol,
                 market,
                 symbol: fullSymbol,
+                currency: meta.currency ?? null,
+                instrumentType: meta.instrumentType ?? null,
+                timestamp: toMilliseconds(meta.regularMarketTime ?? data.timestamp?.[lastIndex]),
                 price: currentPrice,
                 change,
                 changePercent,
@@ -70,7 +74,7 @@ async function getQuote(symbol) {
                 open: quote.open?.[lastIndex] || meta.regularMarketOpen,
                 high: quote.high?.[lastIndex] || meta.regularMarketDayHigh,
                 low: quote.low?.[lastIndex] || meta.regularMarketDayLow,
-                volume: meta.regularMarketVolume || 0,
+                volume: meta.regularMarketVolume ?? quote.volume?.[lastIndex] ?? null,
                 fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh || null,
                 fiftyTwoWeekLow: meta.fiftyTwoWeekLow || null
             }
@@ -90,6 +94,7 @@ async function getChart(symbol, range) {
     if (!resolved) {
         return {
             success: false,
+            code: 'SYMBOL_NOT_FOUND',
             message: '查無此股票代號，請確認代號是否正確'
         };
     }
@@ -131,8 +136,12 @@ async function getChart(symbol, range) {
 
         const volume = timestamps.map((timestamp, index) => ({
             x: timestamp * 1000,
-            y: quote.volume?.[index] || 0
-        })).filter(point => point.y > 0);
+            y: quote.volume?.[index]
+        })).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && point.y >= 0);
+
+        if (ohlc.length === 0) {
+            return { success: false, message: '無歷史股價資料' };
+        }
 
         return {
             success: true,
@@ -140,6 +149,10 @@ async function getChart(symbol, range) {
                 ohlc,
                 volume,
                 symbol: fullSymbol,
+                market: resolved.market,
+                name: chartData.meta?.shortName || chartData.meta?.longName,
+                instrumentType: chartData.meta?.instrumentType ?? null,
+                regularSessionEnd: toMilliseconds(chartData.meta?.currentTradingPeriod?.regular?.end),
                 range
             }
         };
@@ -152,16 +165,17 @@ async function getChart(symbol, range) {
     }
 }
 
-function normalizeOhlcPoint({ timestamp, open, high, low, close }) {
-    const priceCandidates = [open, high, low, close].filter(Number.isFinite);
+function toMilliseconds(seconds) {
+    return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
+}
 
-    if (!Number.isFinite(timestamp) || priceCandidates.length === 0) {
+function normalizeOhlcPoint({ timestamp, open, high, low, close }) {
+    if (!Number.isFinite(timestamp) || !Number.isFinite(close)) {
         return null;
     }
 
-    const fallback = priceCandidates[priceCandidates.length - 1];
-    const o = Number.isFinite(open) ? open : fallback;
-    const c = Number.isFinite(close) ? close : fallback;
+    const o = Number.isFinite(open) ? open : close;
+    const c = close;
     const h = Number.isFinite(high) ? high : Math.max(o, c);
     const l = Number.isFinite(low) ? low : Math.min(o, c);
 
