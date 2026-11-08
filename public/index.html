@@ -25,15 +25,9 @@
                     <button id="searchBtn" type="submit">查詢</button>
                 </div>
             </form>
-            <div class="search-tips">
-                <span>熱門代號：</span>
-                <button class="quick-btn" data-symbol="2330" data-name="台積電" data-kind="股票">2330 台積電</button>
-                <button class="quick-btn" data-symbol="0050" data-name="元大台灣 50" data-kind="ETF">0050 元大台灣 50</button>
-                <button class="quick-btn" data-symbol="6488" data-name="環球晶" data-kind="股票">6488 環球晶</button>
-            </div>
             <div class="search-feedback">
                 <p id="errorMessage" role="alert"></p>
-                <button id="errorSuggestion" class="quick-btn" type="button" hidden></button>
+                <button id="errorSuggestion" type="button" hidden></button>
             </div>
         </div>
 
@@ -77,6 +71,25 @@
                     </div>
                 </div>
                 <p id="quoteMeta" class="quote-meta"></p>
+                <section id="yearRange" class="year-range" aria-labelledby="yearRangeTitle" hidden>
+                    <div class="year-range-heading">
+                        <h3 id="yearRangeTitle">52 週股價位置</h3>
+                        <p id="yearRangeDate" class="quote-meta"></p>
+                    </div>
+                    <p id="yearRangeStatus" class="data-message"></p>
+                    <div id="yearRangeData" hidden>
+                        <p class="year-range-close">最新收盤 <strong id="yearRangeClose"></strong>
+                            <span class="year-range-distance">距高點 <strong id="yearRangeDistance"></strong></span>
+                        </p>
+                        <div id="yearRangeTrack" class="year-range-track" role="img">
+                            <span aria-hidden="true"></span>
+                        </div>
+                        <dl class="year-range-extents">
+                            <div><dt>52 週低點</dt><dd id="yearRangeLow"></dd></div>
+                            <div><dt>52 週高點</dt><dd id="yearRangeHigh"></dd></div>
+                        </dl>
+                    </div>
+                </section>
             </div>
 
             <section id="recentSummary" class="summary-card" aria-labelledby="summaryTitle" hidden>
@@ -115,6 +128,8 @@
                 <nav class="analysis-nav" aria-label="分析段落">
                     <a href="#priceAndVolume">價格與成交量</a>
                     <a href="#indicators">技術指標</a>
+                    <button id="downloadCsv" type="button" class="chart-action"
+                        title="匯出目前圖表區間的日線和技術指標">下載 CSV</button>
                 </nav>
                 <section class="analysis-group" aria-labelledby="priceAndVolume">
                     <h3 id="priceAndVolume" class="analysis-heading" tabindex="-1">價格與成交量</h3>
@@ -155,6 +170,8 @@
                     <div class="indicator-section">
                         <div class="chart-header">
                             <h4>ATR</h4>
+                            <button type="button" class="indicator-help" data-indicator="atr"
+                                aria-label="ATR 計算公式" aria-haspopup="dialog">?</button>
                         </div>
                         <div class="chart-container indicator-chart-container">
                             <canvas id="atrChart"></canvas>
@@ -164,6 +181,8 @@
                     <div class="indicator-section">
                         <div class="chart-header">
                             <h4>RSI</h4>
+                            <button type="button" class="indicator-help" data-indicator="rsi"
+                                aria-label="RSI 計算公式" aria-haspopup="dialog">?</button>
                         </div>
                         <div class="chart-container indicator-chart-container">
                             <canvas id="rsiChart"></canvas>
@@ -173,6 +192,8 @@
                     <div class="indicator-section">
                         <div class="chart-header">
                             <h4>MACD</h4>
+                            <button type="button" class="indicator-help" data-indicator="macd"
+                                aria-label="MACD 計算公式" aria-haspopup="dialog">?</button>
                         </div>
                         <div class="chart-container indicator-chart-container">
                             <canvas id="macdChart"></canvas>
@@ -182,6 +203,8 @@
                     <div class="indicator-section">
                         <div class="chart-header">
                             <h4>KDJ</h4>
+                            <button type="button" class="indicator-help" data-indicator="kdj"
+                                aria-label="KDJ 計算公式" aria-haspopup="dialog">?</button>
                         </div>
                         <div class="chart-container indicator-chart-container">
                             <canvas id="kdjChart"></canvas>
@@ -191,6 +214,19 @@
             </div>
         </div>
     </div>
+
+    <dialog id="indicatorDialog" class="indicator-dialog" aria-labelledby="indicatorTitle">
+        <div class="indicator-dialog-heading">
+            <h2 id="indicatorTitle"></h2>
+            <form method="dialog">
+                <button type="submit" class="chart-action">關閉</button>
+            </form>
+        </div>
+        <p id="indicatorDescription"></p>
+        <h3>本站計算公式</h3>
+        <ol id="indicatorFormula" class="indicator-formula"></ol>
+        <p id="indicatorNote" class="data-message"></p>
+    </dialog>
 
     <script src="app.js"></script>
 </body>

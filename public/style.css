@@ -122,29 +122,7 @@ body {
     cursor: pointer;
 }
 
-.search-tips {
-    text-align: center;
-    margin-top: 15px;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-}
-
-.search-tips span {
-    margin-right: 10px;
-}
-
-.quick-btn {
-    padding: 5px 12px;
-    margin: 3px;
-    font-size: 0.85rem;
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-}
-
-.quick-btn:hover,
+.search-feedback button:hover,
 .range-btn:hover,
 .ma-toggle-bar label:hover {
     border-color: var(--primary-color);
@@ -163,7 +141,13 @@ body {
 
 .search-feedback button {
     margin-top: 8px;
+    padding: 5px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    background: transparent;
     color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
 }
 
 .loading:has(#loading:not(:empty)) {
@@ -298,6 +282,72 @@ body {
     margin-top: 12px;
 }
 
+.year-range {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-dark);
+}
+
+.year-range-heading,
+.year-range-close,
+.year-range-extents {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px 12px;
+}
+
+.year-range-heading .quote-meta {
+    margin: 0;
+}
+
+.year-range-close {
+    justify-content: flex-start;
+    margin-top: 10px;
+}
+
+.year-range-distance {
+    margin-inline-start: auto;
+}
+
+.year-range-track {
+    position: relative;
+    height: 8px;
+    margin: 12px 7px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #334664, #347bb3);
+}
+
+.year-range-track span {
+    position: absolute;
+    top: 50%;
+    left: var(--range-position);
+    width: 14px;
+    height: 14px;
+    transform: translate(-50%, -50%);
+    border: 2px solid var(--text-primary);
+    border-radius: 50%;
+    background: #2379ba;
+}
+
+.year-range-extents dt {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.year-range-extents dd,
+.year-range-close strong {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.year-range-extents > :last-child {
+    text-align: right;
+}
+
 .chart-error:not(:empty) {
     background: var(--bg-card);
     border-radius: 8px;
@@ -365,7 +415,94 @@ body {
 .analysis-nav {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 16px;
+}
+
+.analysis-nav .chart-action {
+    margin-inline-start: auto;
+}
+
+.chart-action,
+.indicator-help {
+    border: 1px solid var(--border-color);
+    background: var(--bg-section);
+    color: var(--text-primary);
+    cursor: pointer;
+    font: inherit;
+}
+
+.chart-action {
+    padding: 6px 12px;
+    border-radius: 8px;
+}
+
+.indicator-help {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #bde4ff;
+    font-weight: 700;
+}
+
+.chart-action:hover,
+.indicator-help:hover {
+    border-color: #8fd3ff;
+}
+
+.indicator-section .chart-header {
+    flex-direction: row;
+    align-items: center;
+}
+
+.indicator-dialog {
+    inset: 0;
+    width: min(560px, calc(100% - 32px));
+    max-height: calc(100dvh - 32px);
+    margin: auto;
+    padding: clamp(16px, 5vw, 25px);
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    box-shadow: var(--shadow);
+}
+
+.indicator-dialog::backdrop {
+    background: rgba(5, 9, 22, 0.75);
+}
+
+.indicator-dialog-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.indicator-dialog-heading form {
+    flex: 0 0 auto;
+}
+
+.indicator-dialog h2 {
+    font-size: 1.25rem;
+}
+
+.indicator-dialog h3 {
+    margin-top: 16px;
+    font-size: 1rem;
+}
+
+.indicator-formula {
+    margin: 8px 0 12px;
+    padding: 12px 12px 12px 32px;
+    border-radius: 8px;
+    background: var(--bg-dark);
+}
+
+.indicator-formula li + li {
+    margin-top: 6px;
 }
 
 .analysis-heading {
