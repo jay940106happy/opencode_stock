@@ -5,13 +5,27 @@ const { test } = require('node:test');
 const vm = require('node:vm');
 
 const app = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+const elements = new Map();
 const context = vm.createContext({
     document: {
-        getElementById: () => ({ addEventListener() {} }),
+        getElementById(id) {
+            if (!elements.has(id)) {
+                elements.set(id, { dataset: {}, addEventListener() {}, removeAttribute() {}, setAttribute() {} });
+            }
+            return elements.get(id);
+        },
         querySelectorAll: () => []
     }
 });
 vm.runInContext(app, context);
+
+test('suggests a known symbol on a page without shortcut buttons', async () => {
+    elements.get('stockSymbol').value = '台積電';
+    await context.handleSearch();
+    const suggestion = elements.get('errorSuggestion');
+    assert.equal(suggestion.hidden, false);
+    assert.equal(suggestion.dataset.symbol, '2330');
+});
 
 const bars = Array.from({ length: 25 }, (_, index) => ({
     x: Date.UTC(2026, 9, index + 1, 1),

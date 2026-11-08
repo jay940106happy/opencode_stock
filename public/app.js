@@ -20,11 +20,16 @@ const chartError = document.getElementById('chartError');
 const recentSummary = document.getElementById('recentSummary');
 const yearRange = document.getElementById('yearRange');
 const maToggleInputs = Array.from(document.querySelectorAll('.ma-toggle'));
-const quickButtons = Array.from(document.querySelectorAll('.search-tips .quick-btn'));
 const rangeButtons = Array.from(document.querySelectorAll('.range-btn'));
 const taipeiDate = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'
 });
+
+const knownStocks = [
+    { symbol: '2330', name: '台積電', kind: '股票' },
+    { symbol: '0050', name: '元大台灣 50', kind: 'ETF' },
+    { symbol: '6488', name: '環球晶', kind: '股票' }
+];
 
 const indicatorHelp = {
     atr: {
@@ -74,12 +79,10 @@ document.getElementById('searchForm').addEventListener('submit', event => {
     handleSearch();
 });
 
-quickButtons.concat(errorSuggestion).forEach(btn => {
-    btn.addEventListener('click', () => {
-        searchInput.value = btn.dataset.symbol;
-        handleSearch();
-        if (btn === errorSuggestion) searchInput.focus();
-    });
+errorSuggestion.addEventListener('click', () => {
+    searchInput.value = errorSuggestion.dataset.symbol;
+    handleSearch();
+    searchInput.focus();
 });
 
 rangeButtons.forEach(btn => {
@@ -128,9 +131,9 @@ async function handleSearch() {
 
     if (!/^[A-Z0-9]{1,6}$/.test(symbol)) {
         const name = symbol.replace(/\s/g, '');
-        const suggestion = quickButtons.find(btn => btn.dataset.name.replace(/\s/g, '') === name);
+        const suggestion = knownStocks.find(stock => stock.name.replace(/\s/g, '') === name);
         const message = suggestion
-            ? `「${symbol}」的代號是 ${suggestion.dataset.symbol}。請點下方按鈕查詢。`
+            ? `「${symbol}」的代號是 ${suggestion.symbol}。請點下方按鈕查詢。`
             : `無法用「${symbol}」查詢。請輸入英數代號，例如 2330。`;
         showError(message, { invalid: true, suggestion });
         return;
@@ -238,9 +241,9 @@ function trimChartDataToRange(chartData, range) {
 
 function updateQuoteUI(data, hasQuote) {
     const code = data.symbol?.split('.')[0];
-    const quickStock = quickButtons.find(btn => btn.dataset.symbol === code)?.dataset;
-    document.getElementById('stockName').textContent = quickStock
-        ? `${quickStock.name} ${code}`
+    const knownStock = knownStocks.find(stock => stock.symbol === code);
+    document.getElementById('stockName').textContent = knownStock
+        ? `${knownStock.name} ${code}`
         : data.name || code || '個股分析';
     document.getElementById('stockSymbolDisplay').textContent = data.symbol || '-';
 
@@ -248,7 +251,7 @@ function updateQuoteUI(data, hasQuote) {
     marketBadge.textContent = data.market || '-';
     marketBadge.className = `market-badge ${data.market === '上市' ? 'listed' : 'otc'}`;
     const kindBadge = document.getElementById('stockKind');
-    const kind = quickStock?.kind || { EQUITY: '股票', ETF: 'ETF' }[data.instrumentType];
+    const kind = knownStock?.kind || { EQUITY: '股票', ETF: 'ETF' }[data.instrumentType];
     kindBadge.textContent = kind || '';
     kindBadge.hidden = !kind;
 
@@ -932,8 +935,8 @@ function showError(message, { invalid, suggestion }) {
     errorMessage.textContent = message;
     if (invalid) searchInput.setAttribute('aria-invalid', 'true');
     if (suggestion) {
-        errorSuggestion.textContent = `查詢 ${suggestion.textContent}`;
-        errorSuggestion.dataset.symbol = suggestion.dataset.symbol;
+        errorSuggestion.textContent = `查詢 ${suggestion.symbol} ${suggestion.name}`;
+        errorSuggestion.dataset.symbol = suggestion.symbol;
         errorSuggestion.hidden = false;
     }
 }
