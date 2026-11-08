@@ -17,32 +17,39 @@
         </header>
 
         <div class="search-section">
-            <div class="search-box">
-                <input type="text" id="stockSymbol" placeholder="輸入股票代號，例如 2330" maxlength="6">
-                <button id="searchBtn">查詢</button>
-            </div>
+            <form id="searchForm" class="search-form">
+                <label for="stockSymbol">股票代號</label>
+                <div class="search-box">
+                    <input type="text" id="stockSymbol" placeholder="例如 2330" maxlength="6"
+                        aria-describedby="errorMessage" autocomplete="off">
+                    <button id="searchBtn" type="submit">查詢</button>
+                </div>
+            </form>
             <div class="search-tips">
                 <span>熱門代號：</span>
-                <button class="quick-btn" data-symbol="2330">2330 台積電</button>
-                <button class="quick-btn" data-symbol="0050">0050 元大台灣50</button>
-                <button class="quick-btn" data-symbol="6488">6488 環球晶</button>
+                <button class="quick-btn" data-symbol="2330" data-name="台積電" data-kind="股票">2330 台積電</button>
+                <button class="quick-btn" data-symbol="0050" data-name="元大台灣 50" data-kind="ETF">0050 元大台灣 50</button>
+                <button class="quick-btn" data-symbol="6488" data-name="環球晶" data-kind="股票">6488 環球晶</button>
+            </div>
+            <div class="search-feedback">
+                <p id="errorMessage" role="alert"></p>
+                <button id="errorSuggestion" class="quick-btn" type="button" hidden></button>
             </div>
         </div>
 
-        <div id="errorMessage" class="error-message" style="display: none;"></div>
-
-        <div id="loading" class="loading" style="display: none;">
-            <div class="spinner"></div>
-            <p>載入中...</p>
+        <div class="loading" role="status">
+            <div id="loadingSpinner" class="spinner" aria-hidden="true" hidden></div>
+            <p id="loading"></p>
         </div>
 
-        <div id="stockInfo" class="stock-info" style="display: none;">
+        <div id="stockInfo" class="stock-info" hidden>
             <div class="info-card">
                 <div class="stock-header">
                     <div class="stock-name-section">
                         <h2 id="stockName">-</h2>
                         <span id="stockSymbolDisplay" class="stock-tag">-</span>
                         <span id="stockMarket" class="market-badge">-</span>
+                        <span id="stockKind" class="stock-tag" hidden></span>
                     </div>
                     <div class="price-section">
                         <span id="stockPrice" class="price">-</span>
@@ -50,7 +57,8 @@
                         <span id="stockChangePercent" class="change-percent">-</span>
                     </div>
                 </div>
-                <div class="stock-details">
+                <p id="quoteError" class="data-message"></p>
+                <div id="stockDetails" class="stock-details">
                     <div class="detail-item">
                         <span class="label">開盤</span>
                         <span id="stockOpen" class="value">-</span>
@@ -68,74 +76,118 @@
                         <span id="stockVolume" class="value">-</span>
                     </div>
                 </div>
+                <p id="quoteMeta" class="quote-meta"></p>
             </div>
 
-            <div class="chart-section">
-                <div class="chart-header">
-                    <h3>K 線圖</h3>
-                    <div class="range-buttons">
-                        <button class="range-btn" data-range="1mo">1個月</button>
-                        <button class="range-btn" data-range="3mo">3個月</button>
-                        <button class="range-btn active" data-range="6mo">6個月</button>
-                        <button class="range-btn" data-range="1y">1年</button>
-                        <button class="range-btn" data-range="5y">5年</button>
+            <section id="recentSummary" class="summary-card" aria-labelledby="summaryTitle" hidden>
+                <h3 id="summaryTitle">近期變化</h3>
+                <p id="summaryDate" class="summary-date"></p>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <h4>價格趨勢</h4>
+                        <dl>
+                            <div><dt>近 5 個交易日</dt><dd id="change5"></dd></div>
+                            <div><dt>近 20 個交易日</dt><dd id="change20"></dd></div>
+                            <div><dt>收盤距 MA20</dt><dd id="ma20Distance"></dd></div>
+                        </dl>
+                        <a href="#priceChart">查看 K 線圖</a>
+                    </div>
+                    <div class="summary-item">
+                        <h4>成交量</h4>
+                        <dl><div><dt>量比</dt><dd id="volumeRatio"></dd></div></dl>
+                        <p>當日成交量 ÷ 前 20 個交易日均量。</p>
+                        <a href="#volume">查看成交量圖</a>
+                    </div>
+                    <div class="summary-item">
+                        <h4>動能與波動</h4>
+                        <dl>
+                            <div><dt>RSI(14)</dt><dd id="rsi14"></dd></div>
+                            <div><dt>ATR(14)</dt><dd id="atr14"></dd></div>
+                        </dl>
+                        <p>RSI 參考線為 30 和 70。ATR 衡量近期價格波動幅度。</p>
+                        <a href="#indicators">查看技術指標</a>
                     </div>
                 </div>
-                <div class="ma-toggle-bar">
-                    <label><input type="checkbox" class="ma-toggle" value="ma5" checked> MA5</label>
-                    <label><input type="checkbox" class="ma-toggle" value="ma10" checked> MA10</label>
-                    <label><input type="checkbox" class="ma-toggle" value="ma20" checked> MA20</label>
-                    <label><input type="checkbox" class="ma-toggle" value="ma60" checked> MA60</label>
-                </div>
-                <div class="chart-container">
-                    <canvas id="candlestickChart"></canvas>
-                </div>
-                <div id="chartError" class="chart-error" style="display: none;"></div>
-            </div>
+            </section>
+            <p id="chartError" class="data-message chart-error" role="status"></p>
 
-            <div class="volume-section">
-                <div class="chart-header">
-                    <h3>成交量</h3>
-                </div>
-                <div class="chart-container volume-chart-container">
-                    <canvas id="volumeChart"></canvas>
-                </div>
-            </div>
+            <div id="chartGroups" class="chart-groups" hidden>
+                <nav class="analysis-nav" aria-label="分析段落">
+                    <a href="#priceAndVolume">價格與成交量</a>
+                    <a href="#indicators">技術指標</a>
+                </nav>
+                <section class="analysis-group" aria-labelledby="priceAndVolume">
+                    <h3 id="priceAndVolume" class="analysis-heading" tabindex="-1">價格與成交量</h3>
+                    <div class="chart-section">
+                        <div class="chart-header">
+                            <h4 id="priceChart" tabindex="-1">K 線圖</h4>
+                            <div class="range-buttons" role="group" aria-label="圖表時間區間">
+                                <button class="range-btn" data-range="1mo" aria-pressed="false">1個月</button>
+                                <button class="range-btn" data-range="3mo" aria-pressed="false">3個月</button>
+                                <button class="range-btn active" data-range="6mo" aria-pressed="true">6個月</button>
+                                <button class="range-btn" data-range="1y" aria-pressed="false">1年</button>
+                                <button class="range-btn" data-range="5y" aria-pressed="false">5年</button>
+                            </div>
+                        </div>
+                        <div class="ma-toggle-bar">
+                            <label><input type="checkbox" class="ma-toggle" value="ma5" checked> MA5</label>
+                            <label><input type="checkbox" class="ma-toggle" value="ma10" checked> MA10</label>
+                            <label><input type="checkbox" class="ma-toggle" value="ma20" checked> MA20</label>
+                            <label><input type="checkbox" class="ma-toggle" value="ma60" checked> MA60</label>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="candlestickChart"></canvas>
+                        </div>
+                    </div>
 
-            <div class="indicator-section">
-                <div class="chart-header">
-                    <h3>ATR</h3>
-                </div>
-                <div class="chart-container indicator-chart-container">
-                    <canvas id="atrChart"></canvas>
-                </div>
-            </div>
+                    <div class="volume-section">
+                        <div class="chart-header">
+                            <h4 id="volume" tabindex="-1">成交量（股）</h4>
+                        </div>
+                        <div class="chart-container volume-chart-container">
+                            <canvas id="volumeChart"></canvas>
+                        </div>
+                    </div>
+                </section>
 
-            <div class="indicator-section">
-                <div class="chart-header">
-                    <h3>RSI</h3>
-                </div>
-                <div class="chart-container indicator-chart-container">
-                    <canvas id="rsiChart"></canvas>
-                </div>
-            </div>
+                <section class="analysis-group" aria-labelledby="indicators">
+                    <h3 id="indicators" class="analysis-heading" tabindex="-1">技術指標</h3>
+                    <div class="indicator-section">
+                        <div class="chart-header">
+                            <h4>ATR</h4>
+                        </div>
+                        <div class="chart-container indicator-chart-container">
+                            <canvas id="atrChart"></canvas>
+                        </div>
+                    </div>
 
-            <div class="indicator-section">
-                <div class="chart-header">
-                    <h3>MACD</h3>
-                </div>
-                <div class="chart-container indicator-chart-container">
-                    <canvas id="macdChart"></canvas>
-                </div>
-            </div>
+                    <div class="indicator-section">
+                        <div class="chart-header">
+                            <h4>RSI</h4>
+                        </div>
+                        <div class="chart-container indicator-chart-container">
+                            <canvas id="rsiChart"></canvas>
+                        </div>
+                    </div>
 
-            <div class="indicator-section">
-                <div class="chart-header">
-                    <h3>KDJ</h3>
-                </div>
-                <div class="chart-container indicator-chart-container">
-                    <canvas id="kdjChart"></canvas>
-                </div>
+                    <div class="indicator-section">
+                        <div class="chart-header">
+                            <h4>MACD</h4>
+                        </div>
+                        <div class="chart-container indicator-chart-container">
+                            <canvas id="macdChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="indicator-section">
+                        <div class="chart-header">
+                            <h4>KDJ</h4>
+                        </div>
+                        <div class="chart-container indicator-chart-container">
+                            <canvas id="kdjChart"></canvas>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>

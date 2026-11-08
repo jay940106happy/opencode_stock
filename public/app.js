@@ -1,5 +1,6 @@
-let currentSymbol = '';
 let currentRange = '6mo';
+let searchRequestId = 0;
+let currentChartData = null;
 let candlestickChart = null;
 let volumeChart = null;
 let atrChart = null;
@@ -9,36 +10,43 @@ let kdjChart = null;
 let latestIndicatorData = null;
 
 const searchInput = document.getElementById('stockSymbol');
-const searchBtn = document.getElementById('searchBtn');
 const errorMessage = document.getElementById('errorMessage');
+const errorSuggestion = document.getElementById('errorSuggestion');
 const loading = document.getElementById('loading');
+const loadingSpinner = document.getElementById('loadingSpinner');
 const stockInfo = document.getElementById('stockInfo');
+const chartGroups = document.getElementById('chartGroups');
+const chartError = document.getElementById('chartError');
+const recentSummary = document.getElementById('recentSummary');
 const maToggleInputs = Array.from(document.querySelectorAll('.ma-toggle'));
-
-searchBtn.addEventListener('click', handleSearch);
-
-searchInput.addEventListener('keypress', event => {
-    if (event.key === 'Enter') {
-        handleSearch();
-    }
+const quickButtons = Array.from(document.querySelectorAll('.search-tips .quick-btn'));
+const rangeButtons = Array.from(document.querySelectorAll('.range-btn'));
+const taipeiDate = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'
 });
 
-document.querySelectorAll('.quick-btn').forEach(btn => {
+document.getElementById('searchForm').addEventListener('submit', event => {
+    event.preventDefault();
+    handleSearch();
+});
+
+quickButtons.concat(errorSuggestion).forEach(btn => {
     btn.addEventListener('click', () => {
         searchInput.value = btn.dataset.symbol;
         handleSearch();
+        if (btn === errorSuggestion) searchInput.focus();
     });
 });
 
-document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        document.querySelectorAll('.range-btn').forEach(button => button.classList.remove('active'));
-        btn.classList.add('active');
+rangeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        rangeButtons.forEach(button => {
+            const selected = button === btn;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
         currentRange = btn.dataset.range;
-
-        if (currentSymbol) {
-            await loadChartData(currentSymbol, currentRange);
-        }
+        if (currentChartData) renderSelectedRange();
     });
 });
 
@@ -51,101 +59,98 @@ maToggleInputs.forEach(input => {
 });
 
 async function handleSearch() {
-    const symbol = searchInput.value.trim();
+    const requestId = ++searchRequestId;
+    const symbol = searchInput.value.normalize('NFKC').trim().toUpperCase();
+    hideError();
+    setLoading(false);
+    stockInfo.hidden = true;
+    chartGroups.hidden = true;
+    recentSummary.hidden = true;
+    chartError.textContent = '';
+    currentChartData = null;
+    latestIndicatorData = null;
+    clearIndicatorCharts();
 
     if (!symbol) {
-        showError('請輸入股票代號');
+        showError('請輸入股票代號，例如 2330。', { invalid: true });
         return;
     }
 
-    hideError();
-    showLoading();
+    if (!/^[A-Z0-9]{1,6}$/.test(symbol)) {
+        const name = symbol.replace(/\s/g, '');
+        const suggestion = quickButtons.find(btn => btn.dataset.name.replace(/\s/g, '') === name);
+        const message = suggestion
+            ? `「${symbol}」的代號是 ${suggestion.dataset.symbol}。請點下方按鈕查詢。`
+            : `無法用「${symbol}」查詢。請輸入英數代號，例如 2330。`;
+        showError(message, { invalid: true, suggestion });
+        return;
+    }
 
+    setLoading(true);
+    const [quote, chart] = await Promise.all([
+        fetchStockData('quote', symbol),
+        fetchStockData('chart', symbol, '&range=5y')
+    ]);
+    if (requestId !== searchRequestId) return;
+    setLoading(false);
+
+    const chartData = chart.data?.ohlc?.length ? chart.data : null;
+    if (!quote.data && !chartData) {
+        const invalid = quote.code === 'SYMBOL_NOT_FOUND' && chart.code === 'SYMBOL_NOT_FOUND';
+        const message = invalid
+            ? `查不到代號「${symbol}」，請確認代號後再查詢。`
+            : `暫時無法取得「${symbol}」的資料，請稍後再查詢。`;
+        showError(message, { invalid });
+        return;
+    }
+
+    updateQuoteUI(quote.data || chartData, Boolean(quote.data));
+    stockInfo.hidden = false;
+
+    if (!chartData) {
+        chartError.textContent = '暫時無法取得歷史資料。可重新查詢以重試。';
+        return;
+    }
+
+    currentChartData = chartData;
+    const indicatorData = buildIndicatorSeries(chartData.ohlc);
+    renderSummary(buildRecentSummary(chartData, indicatorData));
+    latestIndicatorData = indicatorData;
+    renderSelectedRange();
+}
+
+async function fetchStockData(endpoint, symbol, extraQuery = '') {
     try {
-        currentSymbol = symbol;
-
-        const [quoteResult, chartResult] = await Promise.all([
-            loadQuoteData(symbol),
-            loadChartData(symbol, currentRange)
-        ]);
-
-        stockInfo.style.display = 'block';
-
-        if (!quoteResult.success && !chartResult.success) {
-            showError(quoteResult.message || chartResult.message || '查詢失敗');
-        }
+        const response = await fetch(`/api/${endpoint}?symbol=${encodeURIComponent(symbol)}${extraQuery}`);
+        if (!response.ok) return {};
+        const result = await response.json();
+        return result.success ? { data: result.data } : { code: result.code };
     } catch (error) {
-        console.error('Search error:', error);
-        showError(error.message || '查詢失敗，請稍後再試');
-    } finally {
-        hideLoading();
+        console.error('Stock request failed:', error);
+        return {};
     }
 }
 
-async function loadQuoteData(symbol) {
-    const response = await fetch(`/api/quote?symbol=${encodeURIComponent(symbol)}`);
-    const result = await response.json();
-
-    if (!result.success) {
-        showError(result.message || '無法取得股價資料');
-        return result;
-    }
-
-    updateQuoteUI(result.data);
-    return result;
-}
-
-async function loadChartData(symbol, range) {
-    const chartError = document.getElementById('chartError');
-    chartError.style.display = 'none';
-
-    const fetchRange = getIndicatorFetchRange(range);
-    const response = await fetch(`/api/chart?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(fetchRange)}`);
-    const result = await response.json();
-
-    if (!result.success) {
-        chartError.textContent = result.message || '無法取得圖表資料';
-        chartError.style.display = 'block';
-        clearIndicatorCharts();
-        latestIndicatorData = null;
-        return result;
-    }
-
-    if (!result.data?.ohlc?.length) {
-        chartError.textContent = '無歷史股價資料';
-        chartError.style.display = 'block';
-        clearIndicatorCharts();
-        latestIndicatorData = null;
-        return result;
-    }
-
+function renderSelectedRange() {
+    const visible = trimChartDataToRange(currentChartData, currentRange);
+    const indicatorData = latestIndicatorData;
+    indicatorData.ohlc = visible.ohlc;
+    indicatorData.visibleStart = visible.ohlc[0]?.x ?? null;
+    chartGroups.hidden = false;
+    chartError.textContent = '';
     try {
-        const visibleChartData = trimChartDataToRange(result.data, range);
-        const indicatorData = buildIndicatorSeries(result.data.ohlc);
-        indicatorData.ohlc = visibleChartData.ohlc;
-        indicatorData.volume = visibleChartData.volume;
-        indicatorData.visibleStart = visibleChartData.ohlc[0]?.x ?? null;
-        latestIndicatorData = indicatorData;
-
-        renderCandlestickChart(visibleChartData.ohlc, indicatorData);
-        renderVolumeChart(visibleChartData.volume || []);
+        renderCandlestickChart(visible.ohlc, indicatorData);
+        renderVolumeChart(visible.volume);
         renderAtrChart(indicatorData);
         renderRsiChart(indicatorData);
         renderMacdChart(indicatorData);
         renderKdjChart(indicatorData);
     } catch (error) {
-        console.error('[Frontend] Chart render error:', error);
-        chartError.textContent = `圖表渲染失敗: ${error.message}`;
-        chartError.style.display = 'block';
+        console.error('Chart render failed:', error);
+        chartError.textContent = '暫時無法顯示圖表，請重新查詢。';
+        chartGroups.hidden = true;
         clearIndicatorCharts();
-        latestIndicatorData = null;
     }
-
-    return result;
-}
-
-function getIndicatorFetchRange(range) {
-    return range === '5y' ? '5y' : '5y';
 }
 
 function trimChartDataToRange(chartData, range) {
@@ -179,13 +184,31 @@ function trimChartDataToRange(chartData, range) {
     };
 }
 
-function updateQuoteUI(data) {
-    document.getElementById('stockName').textContent = data.name || '-';
+function updateQuoteUI(data, hasQuote) {
+    const code = data.symbol?.split('.')[0];
+    const quickStock = quickButtons.find(btn => btn.dataset.symbol === code)?.dataset;
+    document.getElementById('stockName').textContent = quickStock
+        ? `${quickStock.name} ${code}`
+        : data.name || code || '個股分析';
     document.getElementById('stockSymbolDisplay').textContent = data.symbol || '-';
 
     const marketBadge = document.getElementById('stockMarket');
     marketBadge.textContent = data.market || '-';
     marketBadge.className = `market-badge ${data.market === '上市' ? 'listed' : 'otc'}`;
+    const kindBadge = document.getElementById('stockKind');
+    const kind = quickStock?.kind || { EQUITY: '股票', ETF: 'ETF' }[data.instrumentType];
+    kindBadge.textContent = kind || '';
+    kindBadge.hidden = !kind;
+
+    const quoteMeta = ['資料來源 Yahoo Finance'];
+    if (hasQuote) {
+        const date = Number.isFinite(data.timestamp) ? taipeiDate.format(data.timestamp) : '未提供';
+        quoteMeta.push(`報價交易日 ${date}（台北時間）`, `幣別 ${data.currency || '未提供'}`);
+    }
+    document.getElementById('quoteMeta').textContent = quoteMeta.join(' · ');
+    document.getElementById('quoteError').textContent = hasQuote ? '' : '暫時無法取得最新報價，以下為歷史資料。';
+    document.getElementById('stockDetails').hidden = !hasQuote;
+    document.querySelector('.price-section').hidden = !hasQuote;
 
     document.getElementById('stockPrice').textContent =
         data.price !== null && data.price !== undefined ? formatNumber(data.price) : '-';
@@ -213,7 +236,53 @@ function updateQuoteUI(data) {
         data.high !== null && data.high !== undefined ? formatNumber(data.high) : '-';
     document.getElementById('stockLow').textContent =
         data.low !== null && data.low !== undefined ? formatNumber(data.low) : '-';
-    document.getElementById('stockVolume').textContent = data.volume ? formatVolume(data.volume) : '-';
+    document.getElementById('stockVolume').textContent = formatVolume(data.volume);
+}
+
+function buildRecentSummary({ ohlc, volume, regularSessionEnd }, indicators, now = Date.now()) {
+    const today = taipeiDate.format(now);
+    const completedToday = Number.isFinite(regularSessionEnd) &&
+        taipeiDate.format(regularSessionEnd) === today && now >= regularSessionEnd;
+    const index = ohlc.findLastIndex(point => {
+        const date = taipeiDate.format(point.x);
+        return date < today || (date === today && completedToday);
+    });
+    const bar = ohlc[index];
+    if (!bar) return null;
+
+    const indicatorAtClose = series => series.find(point => point.x === bar.x)?.y ?? null;
+    const priceChange = base => Number.isFinite(base) && base > 0 ? (bar.c / base - 1) * 100 : null;
+    const volumes = new Map(volume.map(point => [point.x, point.y]));
+    const latestVolume = volumes.get(bar.x);
+    const priorVolumes = ohlc.slice(Math.max(0, index - 20), index).map(point => volumes.get(point.x));
+    const averageVolume = priorVolumes.length === 20 && priorVolumes.every(Number.isFinite)
+        ? priorVolumes.reduce((sum, value) => sum + value, 0) / 20
+        : null;
+
+    return {
+        date: taipeiDate.format(bar.x),
+        change5: priceChange(ohlc[index - 5]?.c),
+        change20: priceChange(ohlc[index - 20]?.c),
+        ma20Distance: priceChange(indicatorAtClose(indicators.ma20)),
+        volumeRatio: Number.isFinite(latestVolume) && averageVolume > 0 ? latestVolume / averageVolume : null,
+        rsi14: indicatorAtClose(indicators.rsi14),
+        atr14: indicatorAtClose(indicators.atr14)
+    };
+}
+
+function renderSummary(summary) {
+    document.getElementById('summaryDate').textContent = summary
+        ? `以 ${summary.date} 的完整日線為準（台北時間）。`
+        : '目前沒有可確認已收盤的日線資料。';
+    const units = { change5: '%', change20: '%', ma20Distance: '%', volumeRatio: ' 倍', rsi14: '', atr14: '' };
+    for (const [metric, unit] of Object.entries(units)) {
+        const value = summary?.[metric];
+        const sign = unit === '%' && value > 0 ? '+' : '';
+        document.getElementById(metric).textContent = Number.isFinite(value)
+            ? `${sign}${formatNumber(value)}${unit}`
+            : '資料不足';
+    }
+    recentSummary.hidden = false;
 }
 
 function buildIndicatorSeries(ohlcData) {
@@ -634,15 +703,19 @@ function getTimeSeriesOptions({ hideLegend = false, tooltipFormatter = null, yMi
             x: {
                 type: 'timeseries',
                 time: {
-                    unit: 'day',
-                    displayFormats: {
-                        day: 'MM/dd'
-                    }
+                    unit: 'day'
                 },
                 ticks: {
                     source: 'data',
                     color: '#b0bec5',
-                    maxRotation: 0
+                    maxRotation: 0,
+                    autoSkipPadding: 12,
+                    maxTicksLimit: 10,
+                    callback(value) {
+                        const date = taipeiDate.format(value);
+                        const label = ['1y', '5y'].includes(currentRange) ? date.slice(0, 7) : date.slice(5);
+                        return label.replace('-', '/');
+                    }
                 },
                 grid: {
                     color: 'rgba(255, 255, 255, 0.08)'
@@ -672,7 +745,10 @@ function getTimeSeriesOptions({ hideLegend = false, tooltipFormatter = null, yMi
                 backgroundColor: 'rgba(0, 0, 0, 0.82)',
                 titleColor: '#fff',
                 bodyColor: '#fff',
-                callbacks: tooltipFormatter ? { label: tooltipFormatter } : {}
+                callbacks: {
+                    title: items => Number.isFinite(items[0]?.raw?.x) ? taipeiDate.format(items[0].raw.x) : '',
+                    ...(tooltipFormatter ? { label: tooltipFormatter } : {})
+                }
             }
         }
     };
@@ -693,32 +769,32 @@ function formatVolume(volume) {
     if (!Number.isFinite(volume)) {
         return '-';
     }
-    if (volume >= 1e9) {
-        return `${(volume / 1e9).toFixed(2)} B`;
-    }
-    if (volume >= 1e6) {
-        return `${(volume / 1e6).toFixed(2)} M`;
+    if (volume >= 1e8) {
+        return `${formatNumber(volume / 1e8)} 億股`;
     }
     if (volume >= 1e4) {
-        return `${(volume / 1e4).toFixed(2)} 萬`;
+        return `${formatNumber(volume / 1e4)} 萬股`;
     }
-    return volume.toLocaleString('zh-TW');
+    return `${formatNumber(volume, 0)} 股`;
 }
 
-function showError(message) {
+function showError(message, { invalid, suggestion }) {
     errorMessage.textContent = message;
-    errorMessage.style.display = 'block';
+    if (invalid) searchInput.setAttribute('aria-invalid', 'true');
+    if (suggestion) {
+        errorSuggestion.textContent = `查詢 ${suggestion.textContent}`;
+        errorSuggestion.dataset.symbol = suggestion.dataset.symbol;
+        errorSuggestion.hidden = false;
+    }
 }
 
 function hideError() {
-    errorMessage.style.display = 'none';
+    errorMessage.textContent = '';
+    errorSuggestion.hidden = true;
+    searchInput.removeAttribute('aria-invalid');
 }
 
-function showLoading() {
-    loading.style.display = 'block';
-    stockInfo.style.display = 'none';
-}
-
-function hideLoading() {
-    loading.style.display = 'none';
+function setLoading(active) {
+    loading.textContent = active ? '載入中…' : '';
+    loadingSpinner.hidden = !active;
 }

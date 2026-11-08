@@ -17,6 +17,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: 'Segoe UI', 'Microsoft JhengHei', Arial, sans-serif;
     background: linear-gradient(135deg, var(--bg-dark) 0%, #0f0f23 100%);
@@ -55,6 +59,7 @@ body {
 
 .search-section,
 .info-card,
+.summary-card,
 .chart-section,
 .volume-section,
 .indicator-section {
@@ -75,8 +80,20 @@ body {
     margin: 0 auto;
 }
 
+.search-form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.search-form > label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
 .search-box input {
     flex: 1;
+    min-width: 0;
     padding: 12px 18px;
     font-size: 1.1rem;
     border: 2px solid var(--border-color);
@@ -118,7 +135,7 @@ body {
 
 .quick-btn {
     padding: 5px 12px;
-    margin: 0 3px;
+    margin: 3px;
     font-size: 0.85rem;
     border: 1px solid var(--border-color);
     border-radius: 20px;
@@ -134,17 +151,22 @@ body {
     color: var(--primary-color);
 }
 
-.error-message {
+.search-feedback:has(#errorMessage:not(:empty)) {
     background: rgba(239, 83, 80, 0.1);
     border: 1px solid var(--danger-color);
-    color: var(--danger-color);
-    padding: 15px 20px;
+    color: #ffaaa7;
+    padding: 12px 16px;
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-top: 16px;
     text-align: center;
 }
 
-.loading {
+.search-feedback button {
+    margin-top: 8px;
+    color: var(--text-primary);
+}
+
+.loading:has(#loading:not(:empty)) {
     text-align: center;
     padding: 50px;
 }
@@ -177,6 +199,7 @@ body {
     justify-content: space-between;
     align-items: flex-start;
     flex-wrap: wrap;
+    gap: 12px;
     margin-bottom: 20px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
@@ -185,6 +208,7 @@ body {
 .stock-name-section h2 {
     font-size: 1.8rem;
     margin-bottom: 8px;
+    overflow-wrap: anywhere;
 }
 
 .stock-tag,
@@ -204,6 +228,7 @@ body {
 .market-badge {
     font-size: 0.85rem;
     font-weight: 600;
+    margin-right: 8px;
 }
 
 .market-badge.listed {
@@ -261,6 +286,101 @@ body {
     gap: 15px;
 }
 
+.quote-meta,
+.summary-date,
+.summary-item p,
+.data-message {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.quote-meta {
+    margin-top: 12px;
+}
+
+.chart-error:not(:empty) {
+    background: var(--bg-card);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.chart-error:empty {
+    display: none;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.summary-item {
+    min-width: 0;
+    padding: 14px;
+    border-radius: 8px;
+    background: var(--bg-dark);
+}
+
+.summary-item dl > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    column-gap: 8px;
+    margin: 4px 0;
+}
+
+.summary-item dt {
+    color: var(--text-secondary);
+}
+
+.summary-item dd {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.summary-item a,
+.analysis-nav a {
+    color: #8fd3ff;
+    text-underline-offset: 3px;
+}
+
+.summary-item a {
+    display: inline-block;
+    margin-top: 8px;
+}
+
+.stock-info:has(.chart-groups[hidden]) .summary-item a {
+    display: none;
+}
+
+.chart-groups,
+.analysis-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: 14px;
+}
+
+.analysis-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.analysis-heading {
+    font-size: 1.25rem;
+}
+
+:is(.analysis-heading, .chart-header h4)[id] {
+    scroll-margin-top: 18px;
+}
+
+:is(button, a):focus-visible {
+    outline: 2px solid #8fd3ff;
+    outline-offset: 3px;
+}
+
 .detail-item {
     display: flex;
     flex-direction: column;
@@ -289,7 +409,7 @@ body {
     margin-bottom: 20px;
 }
 
-.chart-header h3 {
+.chart-header h4 {
     font-size: 1.3rem;
 }
 
@@ -340,15 +460,13 @@ body {
     height: 420px;
 }
 
+.chart-container canvas {
+    max-width: 100%;
+}
+
 .volume-chart-container,
 .indicator-chart-container {
     height: 250px;
-}
-
-.chart-error {
-    text-align: center;
-    padding: 20px;
-    color: var(--text-secondary);
 }
 
 @media (max-width: 768px) {
@@ -375,6 +493,10 @@ body {
 
     .price-section {
         text-align: left;
+    }
+
+    .stock-details {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .chart-header {

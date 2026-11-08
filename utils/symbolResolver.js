@@ -22,6 +22,7 @@ async function yahooRequest(url) {
     });
 
     if (!response.ok) {
+        if (response.status === 404) return null;
         throw new Error(`HTTP ${response.status}`);
     }
 
@@ -34,42 +35,24 @@ async function yahooRequest(url) {
  * @returns {Promise<{symbol: string, market: string}>}
  */
 async function resolveSymbol(symbol) {
-    // 清理輸入
     const cleanSymbol = symbol.toString().trim().toUpperCase();
-    
-    // 先嘗試上市（.TW）
-    const twSymbol = `${cleanSymbol}.TW`;
-    try {
-        const url = `${YAHOO_BASE_URL}/v8/finance/chart/${twSymbol}?range=1d&interval=1d`;
-        const result = await yahooRequest(url);
-        
-        if (result.chart?.result?.[0]?.meta?.regularMarketPrice) {
-            return {
-                symbol: twSymbol,
-                market: '上市'
-            };
+    if (!/^[A-Z0-9]{1,6}$/.test(cleanSymbol)) return null;
+
+    let upstreamError;
+    for (const [suffix, market] of [['TW', '上市'], ['TWO', '上櫃']]) {
+        const fullSymbol = `${cleanSymbol}.${suffix}`;
+        try {
+            const url = `${YAHOO_BASE_URL}/v8/finance/chart/${fullSymbol}?range=1d&interval=1d`;
+            const result = await yahooRequest(url);
+            if (result?.chart?.result?.[0]?.meta?.regularMarketPrice != null) {
+                return { symbol: fullSymbol, market };
+            }
+        } catch (error) {
+            upstreamError = error;
         }
-    } catch (error) {
-        // 繼續嘗試下一個
     }
-    
-    // 再嘗試上櫃（.TWO）
-    const twoSymbol = `${cleanSymbol}.TWO`;
-    try {
-        const url = `${YAHOO_BASE_URL}/v8/finance/chart/${twoSymbol}?range=1d&interval=1d`;
-        const result = await yahooRequest(url);
-        
-        if (result.chart?.result?.[0]?.meta?.regularMarketPrice) {
-            return {
-                symbol: twoSymbol,
-                market: '上櫃'
-            };
-        }
-    } catch (error) {
-        // 繼續嘗試下一個
-    }
-    
-    // 都失敗
+
+    if (upstreamError) throw upstreamError;
     return null;
 }
 
