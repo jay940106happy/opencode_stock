@@ -18,12 +18,56 @@ const stockInfo = document.getElementById('stockInfo');
 const chartGroups = document.getElementById('chartGroups');
 const chartError = document.getElementById('chartError');
 const recentSummary = document.getElementById('recentSummary');
+const yearRange = document.getElementById('yearRange');
 const maToggleInputs = Array.from(document.querySelectorAll('.ma-toggle'));
 const quickButtons = Array.from(document.querySelectorAll('.search-tips .quick-btn'));
 const rangeButtons = Array.from(document.querySelectorAll('.range-btn'));
 const taipeiDate = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit'
 });
+
+const indicatorHelp = {
+    atr: {
+        title: 'ATR（14）平均真實波幅',
+        description: '衡量近期價格波動的幅度，單位與股價相同。',
+        formula: [
+            'TR 取三者最大值：當日最高減最低、當日最高與前收之差的絕對值、當日最低與前收之差的絕對值。',
+            '首筆 ATR ＝ 前 14 筆 TR 的平均。',
+            '後續 ATR ＝（前一日 ATR × 13 ＋ 當日 TR）÷ 14。'
+        ],
+        note: 'ATR 上升表示近期波動變大。'
+    },
+    rsi: {
+        title: 'RSI（14）相對強弱指標',
+        description: '用收盤價的漲跌衡量近期動能。RSI 介於 0 到 100。',
+        formula: [
+            '把每日收盤價變動拆成漲額與跌額，跌額取正值。先分別取前 14 筆的平均。',
+            '後續平均 ＝（前一日平均 × 13 ＋ 當日漲額或跌額）÷ 14。',
+            'RS ＝ 平均漲額 ÷ 平均跌額。RSI ＝ 100 − 100 ÷（1 ＋ RS）。'
+        ],
+        note: '本站在平均跌額為 0 時顯示 RSI 100。圖中的參考線是 30 和 70。'
+    },
+    macd: {
+        title: 'MACD（12、26、9）',
+        description: '比較快慢兩條收盤價均線，觀察兩者的差距如何變化。',
+        formula: [
+            'MACD 線 ＝ 收盤價的 12 期 EMA − 26 期 EMA。',
+            '訊號線 ＝ MACD 線的 9 期 EMA。',
+            '柱狀圖 ＝ MACD 線 − 訊號線。'
+        ],
+        note: 'EMA 的初始值採前 N 期平均，之後以 2 ÷（N ＋ 1）作為最新值的權重。'
+    },
+    kdj: {
+        title: 'KDJ（9）隨機指標',
+        description: '觀察收盤價在最近 9 個交易日高低區間中的相對位置。',
+        formula: [
+            'RSV ＝（收盤 − 9 日最低）÷（9 日最高 − 9 日最低）× 100。',
+            'K ＝（前一日 K × 2 ＋ RSV）÷ 3。',
+            'D ＝（前一日 D × 2 ＋ 當日 K）÷ 3。J ＝ 3 × K − 2 × D。'
+        ],
+        note: 'K、D 初始值為 50。9 日最高和最低同價時，RSV 取 50。'
+    }
+};
 
 document.getElementById('searchForm').addEventListener('submit', event => {
     event.preventDefault();
@@ -50,6 +94,11 @@ rangeButtons.forEach(btn => {
     });
 });
 
+document.getElementById('downloadCsv').addEventListener('click', downloadChartCsv);
+document.querySelectorAll('.indicator-help').forEach(button => {
+    button.addEventListener('click', () => openIndicatorHelp(indicatorHelp[button.dataset.indicator]));
+});
+
 maToggleInputs.forEach(input => {
     input.addEventListener('change', () => {
         if (latestIndicatorData) {
@@ -66,6 +115,7 @@ async function handleSearch() {
     stockInfo.hidden = true;
     chartGroups.hidden = true;
     recentSummary.hidden = true;
+    yearRange.hidden = true;
     chartError.textContent = '';
     currentChartData = null;
     latestIndicatorData = null;
@@ -114,7 +164,9 @@ async function handleSearch() {
 
     currentChartData = chartData;
     const indicatorData = buildIndicatorSeries(chartData.ohlc);
-    renderSummary(buildRecentSummary(chartData, indicatorData));
+    const now = Date.now();
+    renderYearRange(buildYearRange(chartData, now));
+    renderSummary(buildRecentSummary(chartData, indicatorData, now));
     latestIndicatorData = indicatorData;
     renderSelectedRange();
 }
@@ -239,14 +291,60 @@ function updateQuoteUI(data, hasQuote) {
     document.getElementById('stockVolume').textContent = formatVolume(data.volume);
 }
 
-function buildRecentSummary({ ohlc, volume, regularSessionEnd }, indicators, now = Date.now()) {
+function getLatestCompletedIndex({ ohlc, regularSessionEnd }, now) {
     const today = taipeiDate.format(now);
     const completedToday = Number.isFinite(regularSessionEnd) &&
         taipeiDate.format(regularSessionEnd) === today && now >= regularSessionEnd;
-    const index = ohlc.findLastIndex(point => {
+    return ohlc.findLastIndex(point => {
         const date = taipeiDate.format(point.x);
         return date < today || (date === today && completedToday);
     });
+}
+
+function buildYearRange(chartData, now = Date.now()) {
+    const { ohlc } = chartData;
+    const index = getLatestCompletedIndex(chartData, now);
+    if (index < 0) return null;
+
+    const { x, c: close } = ohlc[index];
+    const date = taipeiDate.format(x);
+    const weeksInMilliseconds = 52 * 7 * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.parse(date) - weeksInMilliseconds).toISOString().slice(0, 10);
+    if (taipeiDate.format(ohlc[0].x) > cutoff) return null;
+
+    const window = ohlc.slice(0, index + 1).filter(point => taipeiDate.format(point.x) >= cutoff);
+    const low = Math.min(...window.map(point => point.l));
+    const high = Math.max(...window.map(point => point.h));
+    return {
+        date, low, high, close,
+        position: high > low ? (close - low) / (high - low) * 100 : null,
+        distanceFromHigh: high > 0 ? (close - high) / high * 100 : null
+    };
+}
+
+function renderYearRange(range) {
+    yearRange.hidden = false;
+    document.getElementById('yearRangeData').hidden = !range;
+    document.getElementById('yearRangeStatus').textContent = range ? '' : '已收盤的歷史資料未滿 52 週。';
+    document.getElementById('yearRangeDate').textContent = range ? `截至 ${range.date}（台北時間）` : '';
+    if (!range) return;
+
+    document.getElementById('yearRangeClose').textContent = formatNumber(range.close);
+    document.getElementById('yearRangeLow').textContent = formatNumber(range.low);
+    document.getElementById('yearRangeHigh').textContent = formatNumber(range.high);
+    document.getElementById('yearRangeDistance').textContent = Number.isFinite(range.distanceFromHigh)
+        ? `${formatNumber(range.distanceFromHigh)}%`
+        : '—';
+    const track = document.getElementById('yearRangeTrack');
+    track.style.setProperty('--range-position', `${range.position ?? 50}%`);
+    track.setAttribute('aria-label', range.position === null
+        ? '52 週高低點同價'
+        : `收盤價位於 52 週高低區間的 ${formatNumber(range.position, 0)}%`);
+}
+
+function buildRecentSummary(chartData, indicators, now = Date.now()) {
+    const { ohlc, volume } = chartData;
+    const index = getLatestCompletedIndex(chartData, now);
     const bar = ohlc[index];
     if (!bar) return null;
 
@@ -283,6 +381,58 @@ function renderSummary(summary) {
             : '資料不足';
     }
     recentSummary.hidden = false;
+}
+
+function buildChartCsv({ ohlc, volume }, indicators) {
+    const series = [
+        ['成交量(股)', volume],
+        ['MA5', indicators.ma5],
+        ['MA10', indicators.ma10],
+        ['MA20', indicators.ma20],
+        ['MA60', indicators.ma60],
+        ['ATR(14)', indicators.atr14],
+        ['RSI(14)', indicators.rsi14],
+        ['MACD', indicators.macd.macd],
+        ['MACD訊號線', indicators.macd.signal],
+        ['MACD柱狀圖', indicators.macd.histogram],
+        ['K', indicators.kdj.k],
+        ['D', indicators.kdj.d],
+        ['J', indicators.kdj.j]
+    ];
+    const columns = series.map(([, points]) => new Map(points.map(({ x, y }) => [x, y])));
+    const rows = [['日期', '開盤', '最高', '最低', '收盤', ...series.map(([name]) => name)].join(',')];
+    for (const { x, o, h, l, c } of ohlc) {
+        const values = [o, h, l, c, ...columns.map(column => column.get(x))];
+        rows.push([taipeiDate.format(x), ...values.map(value => Number.isFinite(value) ? value : '')].join(','));
+    }
+    return '\uFEFF' + rows.join('\r\n') + '\r\n';
+}
+
+function downloadChartCsv() {
+    if (!currentChartData || !latestIndicatorData) return;
+    const visible = trimChartDataToRange(currentChartData, currentRange);
+    const csv = buildChartCsv(visible, latestIndicatorData);
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentChartData.symbol}-${currentRange}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function openIndicatorHelp(help) {
+    document.getElementById('indicatorTitle').textContent = help.title;
+    document.getElementById('indicatorDescription').textContent = help.description;
+    document.getElementById('indicatorNote').textContent = help.note;
+    const formulaItems = help.formula.map(text => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        return item;
+    });
+    document.getElementById('indicatorFormula').replaceChildren(...formulaItems);
+    document.getElementById('indicatorDialog').showModal();
 }
 
 function buildIndicatorSeries(ohlcData) {
